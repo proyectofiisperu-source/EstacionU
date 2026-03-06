@@ -18,8 +18,39 @@ const ProtectedRoute = ({ children }) => {
         return <Navigate to="/" state={{ from: location }} replace />;
     }
 
-    const role = (user.role || '').toLowerCase();
+    const UNASSIGNED = ['', 'user', 'usuario'];
+    const role = (user.role || user.tipo_usuario || '').toLowerCase().trim();
     const path = location.pathname.toLowerCase();
+
+    const hasNoRole = !role || UNASSIGNED.includes(role);
+
+    // 1. If user has NO ROLE, they can only be on /select-role
+    if (hasNoRole) {
+        if (path !== '/select-role') {
+            return <Navigate to="/select-role" replace />;
+        }
+        return children;
+    }
+
+    // 2. If user has a role but hasn't completed onboarding, they can only be on /complete-profile
+    if (user.onboarding_completo === false) {
+        if (path !== '/complete-profile') {
+            return <Navigate to="/complete-profile" replace />;
+        }
+        return children;
+    }
+
+    // 3. User has completed onboarding, prevent them from accessing onboarding paths
+    if (path === '/select-role' || path === '/complete-profile') {
+        const isAdminUser = ['admin', 'administrador'].includes(role);
+        if (isAdminUser) {
+            return <Navigate to="/admin/dashboard" replace />;
+        } else if (['mentor', 'graduate', 'egresado'].includes(role)) {
+            return <Navigate to="/mentor/dashboard" replace />;
+        } else {
+            return <Navigate to="/student/dashboard" replace />;
+        }
+    }
 
     // Protección extra: si un usuario que NO es admin intenta entrar a rutas de admin,
     // lo redirigimos automáticamente al dashboard correspondiente a su rol.

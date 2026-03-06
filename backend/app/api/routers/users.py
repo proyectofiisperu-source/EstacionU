@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, BackgroundTasks
 from sqlalchemy.orm import Session
 import os
 import shutil
@@ -9,12 +9,15 @@ from app.schemas import schemas
 from app.api.deps import get_db, get_current_user
 from app.core import security
 from app.ws_manager import manager
-
+from app.services import email_service
 
 router = APIRouter(tags=["users"])
 
 @router.get("/users/me")
-async def read_users_me(current_user: models.User = Depends(get_current_user)):
+async def read_users_me(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     profile = current_user.perfil
     education = current_user.educacion[0] if current_user.educacion else None
     
@@ -25,6 +28,23 @@ async def read_users_me(current_user: models.User = Depends(get_current_user)):
     mentor_profile = current_user.mentor_perfil
     sector = mentor_profile.sectores[0].nombre if mentor_profile and mentor_profile.sectores else ""
     area = mentor_profile.areas[0].nombre if mentor_profile and mentor_profile.areas else ""
+
+    # Onboarding requires BOTH a real assigned role AND a real university
+    # If tipo_usuario is 'usuario' (default for new Google users), onboarding is NEVER complete
+    UNASSIGNED_ROLES = ('usuario', 'user', '', None)
+    has_real_role = current_user.tipo_usuario not in UNASSIGNED_ROLES
+    uni = education.universidad if education else ""
+    has_real_uni = bool(uni and uni not in ("Pendiente", "Completada", ""))
+    onboarding_done = has_real_role and has_real_uni
+
+    # Featured mentor application status
+    solicitud_status = None
+    if mentor_profile:
+        latest_solicitud = db.query(models.DestacadoSolicitud).filter(
+            models.DestacadoSolicitud.mentor_perfil_id == mentor_profile.id
+        ).order_by(models.DestacadoSolicitud.fecha_solicitud.desc()).first()
+        if latest_solicitud:
+            solicitud_status = latest_solicitud.status
 
     return {
         "id": current_user.id,
@@ -48,6 +68,10 @@ async def read_users_me(current_user: models.User = Depends(get_current_user)):
         "url_logo_empresa": mentor_profile.url_logo_empresa if mentor_profile else "",
         "sector_nombre": sector,
         "area_nombre": area,
+        "onboarding_completo": onboarding_done,
+        "destacado": mentor_profile.destacado if mentor_profile else False,
+        "bloqueado_destacado": mentor_profile.bloqueado_destacado if mentor_profile else False,
+        "solicitud_status": solicitud_status,
         "disponibilidades": [
             {"dia": d.dia, "hora_inicio": d.hora_inicio, "hora_fin": d.hora_fin}
             for d in (mentor_profile.disponibilidades if mentor_profile else [])
@@ -208,6 +232,21 @@ async def upload_profile_picture(
     
     return {"url_foto": image_url}
 
+@router.delete("/users/me/profile-picture")
+async def delete_profile_picture(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    profile = current_user.perfil
+    if profile:
+        profile.url_foto = None
+        db.commit()
+        
+    if current_user.tipo_usuario in ['mentor', 'graduate', 'egresado']:
+        await manager.broadcast("mentors_updated")
+        
+    return {"message": "Profile picture deleted successfully"}
+
 @router.post("/users/me/company-logo")
 async def upload_company_logo(
     file: UploadFile = File(...),
@@ -218,15 +257,24 @@ async def upload_company_logo(
     if file.content_type not in ["image/jpeg", "image/png", "image/webp", "image/svg+xml"]:
         raise HTTPException(status_code=400, detail="Solo se permiten imagenes JPG, PNG, WEBP y SVG")
     
-    # Create filename
+    # Read file content and check size (50MB max)
+    contents = await file.read()
+    MAX_SIZE = 100 * 1024 * 1024  # 100 MB
+    if len(contents) > MAX_SIZE:
+        raise HTTPException(status_code=400, detail="El logo no debe superar los 100 MB.")
+    
+    # Create filename (infer extension from content_type if missing)
     file_ext = os.path.splitext(file.filename)[1]
+    if not file_ext:
+        ext_map = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/svg+xml": ".svg"}
+        file_ext = ext_map.get(file.content_type, ".jpg")
     filename = f"company_{uuid.uuid4()}{file_ext}"
     file_path = f"static/uploads/{filename}"
     
     # Save file
     try:
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(contents)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar el logo: {str(e)}")
     
@@ -281,10 +329,10 @@ async def update_user_role(
     if profile:
         profile.rol = role_data.role
 
-    # Update education (this serves as the completion flag)
+    # Update education - keep 'Pendiente' as flag that onboarding is not yet complete
     education = current_user.educacion[0] if current_user.educacion else None
     if education:
-        education.universidad = "Completada" # No longer 'Pendiente'
+        education.universidad = "Pendiente"
 
     # If mentor, create MentorProfile if not exists
     if role_data.role == 'mentor':
@@ -296,9 +344,111 @@ async def update_user_role(
     db.commit()
     return {"message": "Rol actualizado exitosamente", "role": role_data.role}
 
+@router.post("/users/me/destacado")
+async def apply_for_destacado(
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.tipo_usuario != 'mentor':
+        raise HTTPException(status_code=400, detail="Solo los mentores pueden ser destacados.")
+    
+    mentor_profile = current_user.mentor_perfil
+    if not mentor_profile:
+        raise HTTPException(status_code=400, detail="Perfil de mentor no encontrado.")
+    
+    if mentor_profile.destacado:
+        raise HTTPException(status_code=400, detail="Ya eres un mentor destacado.")
+    
+    if mentor_profile.bloqueado_destacado:
+        raise HTTPException(status_code=403, detail="Tu acceso a nuevas solicitudes de mentor destacado ha sido restringido por un administrador.")
+
+    # Check required fields
+    if not mentor_profile.sectores or not mentor_profile.areas or \
+       not str(mentor_profile.biografia or '').strip() or \
+       not str(mentor_profile.empresa or '').strip() or \
+       not mentor_profile.url_logo_empresa or \
+       not mentor_profile.disponibilidades:
+        raise HTTPException(
+            status_code=400, 
+            detail="Debes completar: Sector, Área, Mensaje de mentoría, Empresa, Logo y Horarios para aplicar."
+        )
+
+    # Check if there's already a pending request
+    existing = db.query(models.DestacadoSolicitud).filter(
+        models.DestacadoSolicitud.mentor_perfil_id == mentor_profile.id,
+        models.DestacadoSolicitud.status == "pendiente"
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Ya tienes una solicitud pendiente de revisión.")
+
+    # Create new solicitud
+    solicitud = models.DestacadoSolicitud(
+        mentor_perfil_id=mentor_profile.id,
+        status="pendiente"
+    )
+    db.add(solicitud)
+    db.commit()
+    
+    # Send email to Admins
+    admin_emails = [
+        "proyectofiisperu@gmail.com",
+        "lmejia@uni.pe",
+        "mlescanoa@uni.pe",
+        "miguel199826@gmail.com",
+        "aldahir.rojas.m@uni.pe",
+        "aldahir080698@gmail.com"
+    ]
+    for email in admin_emails:
+        background_tasks.add_task(
+            email_service.send_destacado_notification_email, 
+            email, 
+            current_user.nombre_completo, 
+            current_user.correo
+        )
+    
+    # Send email to Mentor
+    background_tasks.add_task(
+        email_service.send_destacado_confirmation_email, 
+        current_user.correo, 
+        current_user.nombre_completo
+    )
+    
+    return {"message": "¡Solicitud enviada! El equipo la revisará en 24-72 horas.", "status": "pendiente"}
+
+@router.delete("/users/me/destacado")
+async def cancel_destacado_solicitation(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.tipo_usuario != 'mentor':
+         raise HTTPException(status_code=400, detail="Solo mentores pueden tener solicitudes.")
+    
+    mentor_profile = current_user.mentor_perfil
+    if not mentor_profile:
+        raise HTTPException(status_code=400, detail="Perfil de mentor no encontrado.")
+    
+    solicitation = db.query(models.DestacadoSolicitud).filter(
+        models.DestacadoSolicitud.mentor_perfil_id == mentor_profile.id,
+        models.DestacadoSolicitud.status == "pendiente"
+    ).first()
+    
+    if not solicitation:
+        raise HTTPException(status_code=404, detail="No tienes una solicitud pendiente para cancelar.")
+    
+    solicitation.status = "cancelada"
+    db.commit()
+    
+    return {"message": "Solicitud cancelada correctamente."}
+
+
+
 @router.get("/mentors")
 def get_mentors(db: Session = Depends(get_db)):
-    users = db.query(models.User).filter(models.User.tipo_usuario == "mentor").all()
+    users = db.query(models.User).join(models.MentorProfile).filter(
+        models.User.tipo_usuario == "mentor",
+        models.MentorProfile.destacado == True
+    ).all()
     mentors_list = []
     
     for user in users:
