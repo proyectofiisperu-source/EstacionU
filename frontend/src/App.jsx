@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
+import NovedadesPage from './pages/NovedadesPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ReportPage from './pages/ReportPage';
@@ -45,6 +46,7 @@ function AppContent() {
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/register" element={<RegisterPage />} />
                         <Route path="/reporte" element={<ReportPage />} />
+                        <Route path="/novedades" element={<NovedadesPage />} />
                         <Route path="/reset-password" element={<ResetPasswordPage />} />
                         <Route
                             path="/select-role"

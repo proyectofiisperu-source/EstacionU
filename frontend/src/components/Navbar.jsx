@@ -187,6 +187,13 @@ const Navbar = () => {
                                     </Link>
 
                                     <Link
+                                        className={`px-4 py-2 rounded-full text-[14px] ${isActive('/novedades') ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white font-semibold' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white font-medium'} transition-all`}
+                                        to="/novedades"
+                                    >
+                                        Novedades
+                                    </Link>
+
+                                    <Link
                                         className={`px-4 py-2 rounded-full text-[14px] ${isActive('/reporte') ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white font-semibold' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white font-medium'} transition-all`}
                                         to="/reporte"
                                     >
@@ -295,6 +302,7 @@ const Navbar = () => {
                             ) : (
                                 <>
                                     <Link className={`${isActive('/') ? 'text-primary' : 'text-slate-600 dark:text-slate-300'} font-bold py-3 border-b border-slate-100 dark:border-slate-800 transition-colors`} to="/" onClick={() => setIsMobileMenuOpen(false)}>Inicio</Link>
+                                    <Link className={`${isActive('/novedades') ? 'text-primary' : 'text-slate-600 dark:text-slate-300'} font-bold py-3 border-b border-slate-100 dark:border-slate-800 transition-colors`} to="/novedades" onClick={() => setIsMobileMenuOpen(false)}>Novedades</Link>
                                     <Link className={`${isActive('/reporte') ? 'text-primary' : 'text-slate-600 dark:text-slate-300'} font-bold py-3 border-b border-slate-100 dark:border-slate-800 transition-colors`} to="/reporte" onClick={() => setIsMobileMenuOpen(false)}>Nuestro reporte</Link>
                                     <Link className="text-slate-600 dark:text-slate-300 font-bold py-3 border-b border-slate-100 dark:border-slate-800 transition-colors" to="/login" onClick={() => setIsMobileMenuOpen(false)}>Iniciar sesión</Link>
                                     <Link className="bg-primary text-white text-center font-bold py-3.5 mt-4 rounded-xl shadow-lg shadow-primary/20 hover:bg-blue-600 active:scale-95 transition-all" to="/register" onClick={() => setIsMobileMenuOpen(false)}>Únete ahora</Link>
