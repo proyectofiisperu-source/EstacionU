@@ -338,3 +338,11 @@ systemctl restart estacionu
 ```
 
 ¡Y listo! Con esto tendrás la plataforma profesionalmente desplegada y a prueba de todo. 🚀
+
+#1. ssh root@ip
+#2. password
+
+# 1. Entrar a la carpeta del proyecto
+cd /root/EstacionU
+# 2. Ejecutar tu script de actualización (el que creamos antes)
+./update.sh

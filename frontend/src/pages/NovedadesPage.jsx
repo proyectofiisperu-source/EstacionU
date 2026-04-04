@@ -58,7 +58,7 @@ const NovedadesPage = () => {
                     </p>
                     <div className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-md rounded-2xl p-12 border border-slate-200 dark:border-slate-700 shadow-xl max-w-4xl mx-auto">
                         <p className="text-lg text-slate-500 dark:text-slate-400">
-                            Próximamente estaremos compartiendo las últimas novedades aquí. ¡Mantente atento!
+                            Próximamente estaremos compartiendo las últimas novedades aquí.
                         </p>
                     </div>
                 </div>
