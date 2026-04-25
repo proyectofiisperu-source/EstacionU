@@ -6,8 +6,10 @@ import FluidBackground from '../components/FluidBackground';
 const AdminCoffeeChatsPage = () => {
     const [users, setUsers] = useState([]);
     const [stats, setStats] = useState([]);
+    const [allChats, setAllChats] = useState([]);
     const [loadingUsers, setLoadingUsers] = useState(true);
     const [loadingStats, setLoadingStats] = useState(true);
+    const [loadingAllChats, setLoadingAllChats] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
     const [selectedUser, setSelectedUser] = useState(null);
@@ -20,11 +22,43 @@ const AdminCoffeeChatsPage = () => {
     const chatsPerPage = 4;
     const [currentPageMentors, setCurrentPageMentors] = useState(1);
     const mentorsPerPage = 10;
+    const [viewMode, setViewMode] = useState('table'); // 'table' or 'details'
+    const [currentPageAllChats, setCurrentPageAllChats] = useState(1);
+    const allChatsPerPage = 10;
 
     useEffect(() => {
         fetchStats();
         fetchUsers();
+        fetchAllChats();
     }, []);
+
+    useEffect(() => {
+        if (selectedChatModal || showTopMentorsModal) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [selectedChatModal, showTopMentorsModal]);
+
+    const fetchAllChats = async () => {
+        try {
+            setLoadingAllChats(true);
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/admin/coffee-chats/all', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                setAllChats(await res.json());
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoadingAllChats(false);
+        }
+    };
 
     const fetchStats = async () => {
         try {
@@ -115,6 +149,13 @@ const AdminCoffeeChatsPage = () => {
     const currentMentors = stats.slice(indexOfFirstMentor, indexOfLastMentor);
     const totalMentorPages = Math.ceil(stats.length / mentorsPerPage);
 
+    // All Chats Pagination logic
+    const filteredAllChats = allChats.filter(chat => statusFilter === 'all' ? true : chat.estado === statusFilter);
+    const indexOfLastAllChat = currentPageAllChats * allChatsPerPage;
+    const indexOfFirstAllChat = indexOfLastAllChat - allChatsPerPage;
+    const currentAllChats = filteredAllChats.slice(indexOfFirstAllChat, indexOfLastAllChat);
+    const totalAllChatPages = Math.ceil(filteredAllChats.length / allChatsPerPage);
+
     return (
         <div className="bg-background-light dark:bg-background-dark min-h-screen text-slate-800 dark:text-slate-200 font-sans transition-colors duration-300 relative">
             <FluidBackground />
@@ -130,6 +171,18 @@ const AdminCoffeeChatsPage = () => {
                             </h1>
                             <p className="text-slate-500 font-medium mt-1">Supervisa todas las sesiones y evalúa a los mentores.</p>
                         </div>
+                        <button
+                            onClick={() => {
+                                setViewMode(viewMode === 'table' ? 'details' : 'table');
+                                setStatusFilter('all');
+                            }}
+                            className="px-5 py-2.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm rounded-xl transition-all shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                        >
+                            <span className="material-icons text-[18px]">
+                                {viewMode === 'table' ? 'dashboard' : 'table_view'}
+                            </span>
+                            {viewMode === 'table' ? 'Vista Detallada' : 'Vista General'}
+                        </button>
                     </div>
 
                     {/* Stats Section: Top Mentors */}
@@ -193,7 +246,136 @@ const AdminCoffeeChatsPage = () => {
                         )}
                     </div>
 
-                    <div className="flex flex-col lg:flex-row gap-6">
+                    {viewMode === 'table' ? (
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col p-6 animate-fade-in-up">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                                <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <span className="material-icons text-primary">list_alt</span>
+                                    Todos los Coffee Chats
+                                </h2>
+                                <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-lg">
+                                    <button
+                                        onClick={() => { setStatusFilter('all'); setCurrentPageAllChats(1); }}
+                                        className={`px-4 py-2 text-xs font-bold rounded-md transition-all ${statusFilter === 'all' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                    >
+                                        Todos
+                                    </button>
+                                    <button
+                                        onClick={() => { setStatusFilter('pendiente'); setCurrentPageAllChats(1); }}
+                                        className={`px-4 py-2 text-xs font-bold rounded-md transition-all ${statusFilter === 'pendiente' ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                    >
+                                        Pendientes
+                                    </button>
+                                    <button
+                                        onClick={() => { setStatusFilter('confirmada'); setCurrentPageAllChats(1); }}
+                                        className={`px-4 py-2 text-xs font-bold rounded-md transition-all ${statusFilter === 'confirmada' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                    >
+                                        Confirmadas
+                                    </button>
+                                    <button
+                                        onClick={() => { setStatusFilter('realizada'); setCurrentPageAllChats(1); }}
+                                        className={`px-4 py-2 text-xs font-bold rounded-md transition-all ${statusFilter === 'realizada' ? 'bg-white dark:bg-slate-700 text-green-600 dark:text-green-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                    >
+                                        Realizadas
+                                    </button>
+                                    <button
+                                        onClick={() => { setStatusFilter('cancelada'); setCurrentPageAllChats(1); }}
+                                        className={`px-4 py-2 text-xs font-bold rounded-md transition-all ${statusFilter === 'cancelada' ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                    >
+                                        Canceladas
+                                    </button>
+                                </div>
+                            </div>
+
+                            {loadingAllChats ? (
+                                <div className="flex items-center justify-center p-20"><span className="material-icons animate-spin text-4xl text-primary">refresh</span></div>
+                            ) : filteredAllChats.length === 0 ? (
+                                <div className="text-center p-16 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 text-slate-500 text-lg">
+                                    No se encontraron Coffee Chats con los filtros seleccionados.
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
+                                    <table className="w-full text-left border-collapse min-w-[800px]">
+                                        <thead>
+                                            <tr className="bg-slate-50 dark:bg-slate-900/80 text-slate-500 text-[11px] uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                                                <th className="p-4 font-black">Estudiante</th>
+                                                <th className="p-4 font-black">Mentor</th>
+                                                <th className="p-4 font-black">Tema</th>
+                                                <th className="p-4 font-black text-center">Estado</th>
+                                                <th className="p-4 font-black text-center">Fecha</th>
+                                                <th className="p-4 font-black text-center">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                            {currentAllChats.map((chat) => (
+                                                <tr key={chat.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors">
+                                                    <td className="p-4">
+                                                        <div className="font-bold text-slate-900 dark:text-white text-sm">{chat.estudiante}</div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="font-bold text-slate-900 dark:text-white text-sm">{chat.mentor}</div>
+                                                    </td>
+                                                    <td className="p-4 max-w-[200px] truncate text-slate-700 dark:text-slate-300 text-sm">
+                                                        {chat.tema}
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md inline-block ${
+                                                            chat.estado === 'realizada' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                            chat.estado === 'confirmada' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                            chat.estado === 'pendiente' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                        }`}>
+                                                            {chat.estado}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <div className="text-sm font-bold text-slate-800 dark:text-slate-200">{chat.fecha}</div>
+                                                        <div className="text-xs text-slate-500">{chat.hora}</div>
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <button 
+                                                            onClick={() => setSelectedChatModal({
+                                                                ...chat,
+                                                                otra_persona: chat.mentor, // Use mentor for display
+                                                                rol_en_cita: 'Estudiante' // Fixed context for modal
+                                                            })}
+                                                            className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                                            title="Ver detalles"
+                                                        >
+                                                            <span className="material-icons text-[20px]">visibility</span>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {totalAllChatPages > 1 && (
+                                <div className="flex items-center justify-between mt-6 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                    <button
+                                        onClick={() => setCurrentPageAllChats(prev => Math.max(prev - 1, 1))}
+                                        disabled={currentPageAllChats === 1}
+                                        className={`flex items-center gap-1 px-4 py-2 rounded-xl font-bold text-sm transition-all ${currentPageAllChats === 1 ? 'text-slate-400 bg-slate-100 dark:bg-slate-800 cursor-not-allowed' : 'text-slate-700 dark:text-slate-300 bg-white hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 shadow-sm'}`}
+                                    >
+                                        <span className="material-icons text-sm">chevron_left</span> Anterior
+                                    </button>
+                                    <span className="text-sm font-bold text-slate-500 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                        Página {currentPageAllChats} de {totalAllChatPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setCurrentPageAllChats(prev => Math.min(prev + 1, totalAllChatPages))}
+                                        disabled={currentPageAllChats === totalAllChatPages}
+                                        className={`flex items-center gap-1 px-4 py-2 rounded-xl font-bold text-sm transition-all ${currentPageAllChats === totalAllChatPages ? 'text-slate-400 bg-slate-100 dark:bg-slate-800 cursor-not-allowed' : 'text-slate-700 dark:text-slate-300 bg-white hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 shadow-sm'}`}
+                                    >
+                                        Siguiente <span className="material-icons text-sm">chevron_right</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col lg:flex-row gap-6 animate-fade-in">
                         {/* Users List Column */}
                         <div className="w-full lg:w-1/3 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col h-[700px]">
                             <div className="p-5 border-b border-slate-100 dark:border-slate-700">
@@ -452,6 +634,7 @@ const AdminCoffeeChatsPage = () => {
                             )}
                         </div>
                     </div>
+                    )}
                 </main>
             </div>
 

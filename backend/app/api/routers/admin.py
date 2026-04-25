@@ -888,9 +888,48 @@ def get_user_chats(
                 "hora_realizada": c.hora_realizada
             })
             
-    # Sort descending (most recent first)
+            # Sort descending (most recent first)
     resultados.sort(key=lambda x: str(x["fecha"]) + str(x["hora"]) if x["fecha"] else "", reverse=True)
     return resultados
+
+@router.get("/coffee-chats/all")
+def get_all_chats(
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_admin)
+):
+    citas = db.query(models.Appointment).all()
+    resultados = []
+    
+    for c in citas:
+        mentee = db.query(models.User).filter(models.User.id == c.usuario_mentee_id).first()
+        mentor_profile = db.query(models.MentorProfile).filter(models.MentorProfile.id == c.mentor_id).first()
+        mentor_user = None
+        if mentor_profile:
+            mentor_user = db.query(models.User).filter(models.User.id == mentor_profile.usuario_id).first()
+            
+        resultados.append({
+            "id": c.id,
+            "estudiante": mentee.nombre_completo if mentee else "Estudiante Borrado",
+            "estudiante_id": mentee.id if mentee else None,
+            "mentor": mentor_user.nombre_completo if mentor_user else "Mentor Borrado",
+            "mentor_id": mentor_user.id if mentor_user else None,
+            "tema": c.tema or "N/A",
+            "estado": c.estado,
+            "fecha": c.fecha_programada,
+            "hora": c.hora_programada,
+            "calificacion_utilidad": c.calificacion_utilidad,
+            "calificacion_general": c.calificacion_general,
+            "recomendaria": c.recomendaria_mentor,
+            "se_dio_en_dia": c.se_dio_en_dia_acordado,
+            "otro_texto": c.otro_texto,
+            "fecha_realizada": c.fecha_realizada,
+            "hora_realizada": c.hora_realizada,
+            "rol_en_cita": "Estudiante" # required by modal
+        })
+        
+    resultados.sort(key=lambda x: str(x["fecha"]) + str(x["hora"]) if x["fecha"] else "", reverse=True)
+    return resultados
+
 
 @router.get("/coffee-chats/stats")
 def get_coffee_chat_stats_mentors(

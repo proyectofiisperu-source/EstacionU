@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import NovedadesPage from './pages/NovedadesPage';
+import AdminNovedadesPage from './pages/AdminNovedadesPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ReportPage from './pages/ReportPage';
@@ -149,6 +150,14 @@ function AppContent() {
                             element={
                                 <ProtectedRoute>
                                     <ChangePasswordPage />
+                                </ProtectedRoute>
+                            }
+                        />
+                        <Route
+                            path="/admin/novedades"
+                            element={
+                                <ProtectedRoute>
+                                    <AdminNovedadesPage />
                                 </ProtectedRoute>
                             }
                         />

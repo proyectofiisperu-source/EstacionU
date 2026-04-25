@@ -6,7 +6,7 @@ from app.database import engine
 from app import models
 
 # Import routers
-from app.api.routers import auth, users, appointments, admin, catalogs
+from app.api.routers import auth, users, appointments, admin, catalogs, novedades
 
 # Create upload directory
 UPLOAD_DIR = "static/uploads"
@@ -38,6 +38,7 @@ app.include_router(users.router)
 app.include_router(appointments.router)
 app.include_router(admin.router)
 app.include_router(catalogs.router)
+app.include_router(novedades.router)
 
 # Analytics middleware - tracks page visits
 from app.middleware.analytics import AnalyticsMiddleware

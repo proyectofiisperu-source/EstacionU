@@ -203,3 +203,17 @@ class PageVisit(Base):
     path = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# --- Novedades ---
+
+class Novedad(Base):
+    __tablename__ = "novedades"
+
+    id = Column(Integer, primary_key=True, index=True)
+    titulo = Column(String, nullable=False)
+    descripcion = Column(Text, nullable=False)
+    url = Column(String, nullable=True)
+    url_imagen_empresa = Column(String, nullable=True)
+    empresa = Column(String, nullable=True)
+    url_imagen_principal = Column(String, nullable=True)
+    fecha_creacion = Column(DateTime(timezone=True), server_default=func.now())
